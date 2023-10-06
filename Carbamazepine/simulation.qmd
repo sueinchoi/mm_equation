@@ -21,7 +21,7 @@ Call the simulation
 
 ```{r}
 
-mod <- mread_cache("DrugA/MM_induction.cpp")
+mod <- mread_cache("Vactosertib/MM_induction.cpp")
 
 ```
 

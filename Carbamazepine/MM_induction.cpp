@@ -148,6 +148,7 @@ Kpre = 0.600  // rest of body //! Same as skin
 MW  = 100
 DOSE = 100
 fu   = 0.681  //; fraction unbound in plasma
+fu_liver = 1
 CbCp    = 0.98  //; blood to plasma ratio
 fumic = 0.9
 fuhep = 1
@@ -155,16 +156,17 @@ fu_gut = 1
 
 // * Clearances
 
-CLint_1a2_ul = 1.03
+CLint_1a2_ul = 0
 CLint_2b6_ul = 0   //; fm2b6 = 0.21
-CLint_2c8_ul = 2.82
-CLint_2c9_ul = 1.05
-CLint_2c19_ul = 0.44  //; fm2c19 = 0.06
-CLint_2d6_ul = 13.5
-CLint_3a4_ul = 13.97
-CLint_other_ul = 16.35   //;
+CLint_2c8_ul = 0
+CLint_2c9_ul = 0
+CLint_2c19_ul = 0  //; fm2c19 = 0.06
+CLint_2d6_ul = 0
+CLint_3a4_ul = 0
+CLint_other_ul = 0   //;
 CLint_ul = 0
-CLint_3a4_intestine = 1.21
+CLint_3a4_intestine = 0
+
 Km_3a4 = 5.4 // uM
 
 
@@ -172,9 +174,6 @@ celltype = 0 // microsome(0), hepatocyte(1)
 
 CLrenal   =  0   //; CLint renal (L/hr)
 CLbile = 0
-
-
-
 
 
 // * Absorption
@@ -463,7 +462,8 @@ double EC50_3a4=EC50_3a4_uM * MW * fuhep;    // ug/L
 //* Bioavailability
 
 F_D = Fa * Fg_qgut * 1000;       // bioavailability of substrate // mg dose to ng/mL concentration
-ALAG_D = 0.1;
+ALAG_D = 0;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //! Index drug specific (Bupropion)
@@ -512,8 +512,7 @@ double EC50_3a4_i=EC50_3a4_uM_i * MWi * fuhep_i;    // ug/L
 
 //*Bioavailability
 
-F_Di = Fa_i * Fg_changed_i * 1000;     
-
+F_Di = Fa_i * Fg_qgut_i * 1000;     
 
 
 
@@ -540,7 +539,7 @@ double Crest     = Are/Vre;  // rest of body
 
 // *Calculation of free concentrations - ug/mL
 
-double Cliverfree  = Cliver*fu/Kpli;  // liver
+double Cliverfree  = Cliver*fu_liver;  // liver
 double Ckidneyfree = Ckidney*fu; // kidney
 double Cgutfree = Cgut*fu_gut;
 
@@ -591,7 +590,7 @@ double Fg_qgut = Qgut / (Qgut + TVCL_intestine * fu_gut);
 
 //* Bioavailability
 
-double Fg_changed  = 1 / ((CYP3A4_intestine_ratio * Km_3a4) / (CYP3A4_intestine_ratio * enzyme_3a4_intestine + Km_3a4) * (1 + Cgutfree_i / Ki_3a4_i) * (1 - Fg) + Fg) * Fg;    // FDA in vitro DDI Figure 7 // Wang et al// Sugiyama 3A4
+// double Fg_changed  = 1 / ((CYP3A4_intestine_ratio * Km_3a4) / (CYP3A4_intestine_ratio * enzyme_3a4_intestine + Km_3a4) * (1 + Cgutfree_i / Ki_3a4_i) * (1 - Fg) + Fg) * Fg;    // FDA in vitro DDI Figure 7 // Wang et al// Sugiyama 3A4
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -657,6 +656,10 @@ dxdt_Di   = - Absorption_i;                          // oral dosing
 
 double TVCL_total_i = CLint_i + CLbile_i;
 double TVCL_enzyme_i = CLint_1a2_i / (1 + 1 / Ki_1a2 * Cliverfree) * CYP1A2_ratio + CLint_2b6_i / (1 + 1 / Ki_2b6 * Cliverfree) * CYP2B6_ratio + CLint_2c8_i / (1 + 1 / Ki_2c8 * Cliverfree) * CYP2C8_ratio + CLint_2c9_i / (1 + 1 / Ki_2c9 * Cliverfree) * CYP2C9_ratio + CLint_2c19_i / (1 + 1 / Ki_2c19 * Cliverfree) * CYP2C19_ratio + CLint_2d6_i / (1 + 1 / Ki_2d6 * Cliverfree) * CYP2D6_ratio + CLint_3a4_i / (1 + 1 / Ki_3a4 * Cliverfree) * CYP3A4_ratio + CLint_other_i + CLbile_i;
+
+double TVCL_intestine_i = CYP3A4_intestine_ratio * CLint_3a4_intestine * Km_3a4 / (CYP3A4_intestine_ratio * enzyme_3a4_intestine + Km_3a4 * (1 + 1 / Ki_3a4 * Cgutfree));
+double Fg_qgut_i = Qgut / (Qgut + TVCL_intestine * fu_gut);
+
 
 
 double TVCLi = (1 - CLtype_i) * TVCL_enzyme_i + CLtype_i * TVCL_total_i; 

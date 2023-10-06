@@ -1,0 +1,166 @@
+---
+title: "Simulation"
+format:
+  html:
+    code-fold: true
+---
+
+Environment setting
+
+```{r}
+library(tidyverse)
+library(mrgsolve)
+library(PKPDmisc)
+library(cowplot)
+library(NonCompart)
+library(flextable)
+
+```
+
+Call the simulation 
+
+```{r}
+
+mod <- mread_cache("Vactosertib/MM_induction.cpp")
+
+```
+
+Drug dosing scenario
+
+```{r}
+# Default simulation scenario
+amt <- 200       #input(Simulation)
+ii <- 12     #input(Simulation)
+addl <- 14    #input(Simulation)
+start_time <- 0    #input(Simulation)
+```
+
+Run simulation (default Km, conventional equation comparison)
+
+```{r}
+
+idata <- data.frame(ID = 1:2, Km_3a4 =c(5.4, 1000)) 
+
+data <- mod %>%
+    idata_set(idata) %>%
+    ev(amt = amt, ii = ii, addl = addl) %>%
+    mrgsim(end = ii*(addl+1), maxsteps = 1000000) %>%
+    as.data.frame() %>%
+    select(ID, time, Cp, TVCL_result, Fg_qgut_result)
+
+```
+
+
+Ploting by Single / Multiple situation for auto-induction evaluation
+
+```{r}
+data_tidy_sim <- data %>%
+  filter(time <= ii | time >= ii*addl) %>%
+  mutate(SS = ifelse(time <= ii, "Single", "Multiple")) %>%
+  mutate(TAD = ifelse(time <= ii, time, time - ii*addl)) 
+
+data_tidy_sim %>%
+  # filter(SS == "Multiple") %>%
+  ggplot(aes(x = TAD, y = Cp, color = SS)) +
+  geom_line() +
+  facet_wrap(~ID, ncol = 3) +
+  theme_bw()
+```
+
+Close evaluation on hepatic clearance & Fg change
+
+```{r}
+
+data %>%
+  ggplot(aes(x = time, y = TVCL_result, color = factor(ID))) +
+  geom_line() +
+  theme_bw()
+
+data %>%
+  ggplot(aes(x = time, y = Fg_qgut_result, color = factor(ID))) +
+  geom_line() +
+  theme_bw()
+```
+
+
+Auto-induction effect evaluation by NCA
+
+```{r}
+aucs <- data_tidy_sim %>%
+  tblNCA(key = c("ID", "SS"), colTime = "time", colConc = "Cp", R2ADJ = -1) %>%
+  select(ID, SS, CMAX, AUCLST, AUCIFO) %>%
+  gather(key = "PK", value = "value", -ID, -SS) %>%
+  spread(key = "SS", value = c("value")) %>%
+  mutate(percent_changed = Multiple / Single * 100) 
+
+flextable(aucs)
+```
+
+
+Additional evaluation on Km changes
+
+```{r}
+idata_all <- data.frame(ID = 1:20, Km_3a4 = c(seq(0.001, 30, length.out = 10), seq(100, 1000, length.out = 10))) 
+
+
+data_all <- mod %>%
+    idata_set(idata_all) %>%
+    ev(amt = amt, ii = ii, addl = addl) %>%
+    mrgsim(end = ii*(addl+1), maxsteps = 1000000) %>%
+    as.data.frame() %>%
+    select(ID, time, Cp, TVCL_result, Fg_qgut_result)
+
+data_all_tidy <- data_all %>%
+    left_join(idata_all, by = "ID")
+data_sim_all <- data_all_tidy %>%
+  filter(time <= ii | time >= ii*addl) %>%
+  mutate(SS = ifelse(time <= ii, "Single", "Multiple")) %>%
+  mutate(TAD = ifelse(time <= ii, time, time - ii*addl)) 
+
+
+```
+
+
+```{r}
+
+data_sim_all %>%
+  # filter(SS == "Multiple") %>%
+  ggplot(aes(x = TAD, y = Cp, color = SS)) +
+  geom_line() +
+  facet_wrap(~Km_3a4, ncol = 3) +
+  theme_bw()
+
+```
+
+
+```{r}
+data_all_tidy %>%
+  ggplot(aes(x = time, y = TVCL_result, color = factor(Km_3a4))) +
+  geom_line() +
+  facet_wrap(~Km_3a4, ncol = 3, scales = "free_y") +
+  theme_bw()
+
+data_all_tidy %>%
+  ggplot(aes(x = time, y = Fg_qgut_result, color = factor(Km_3a4))) +
+  geom_line() +
+  facet_wrap(~Km_3a4, ncol = 3, scales = "free_y") +
+  theme_bw()
+```
+
+
+```{r}
+
+aucs <- data_sim_all %>%
+  tblNCA(key = c("Km_3a4", "SS"), colTime = "time", colConc = "Cp", R2ADJ = -1) %>%
+  select(Km_3a4, SS, CMAX, AUCLST, AUCIFO) %>%
+  gather(key = "PK", value = "value", -Km_3a4, -SS) %>%
+  spread(key = "SS", value = c("value")) %>%
+  mutate(percent_increase = Multiple / Single * 100) 
+
+aucs %>%
+  filter(PK == "AUCLST") %>%
+  ggplot(aes(x = Km_3a4, y = percent_increase)) +
+  geom_line() +
+  geom_point() +
+  theme_bw()
+```
